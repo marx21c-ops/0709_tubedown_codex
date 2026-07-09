@@ -218,6 +218,20 @@ func classifyExtractionError(message string) Error {
 			Code:    "PLATFORM_AUTH_REQUIRED",
 			Message: "YouTube is asking this server to confirm it is not a bot. Configure YouTube cookies or a proxy.",
 		}
+	case strings.Contains(lower, "instagram api is not granting access") ||
+		strings.Contains(lower, "empty media response") ||
+		strings.Contains(lower, "use --cookies"):
+		return Error{
+			Status:  fiber.StatusBadGateway,
+			Code:    "PLATFORM_AUTH_REQUIRED",
+			Message: "This platform requires an accessible public post or cookies for authentication.",
+		}
+	case strings.Contains(lower, "no video could be found"):
+		return Error{
+			Status:  fiber.StatusBadRequest,
+			Code:    "NO_VIDEO_FOUND",
+			Message: "No downloadable video was found at this URL.",
+		}
 	case strings.Contains(lower, "unsupported url"):
 		return Error{Status: fiber.StatusBadRequest, Code: "INVALID_URL", Message: "unsupported url"}
 	default:
