@@ -4,6 +4,8 @@ Go/Fiber API server for extracting video metadata and streaming downloads throug
 
 This service is intended for personal archiving and backing up content you own or are authorized to download. It does not bypass DRM.
 
+Initial allowlist: YouTube, TikTok, Twitter/X, Instagram, Reddit, Twitch, SoundCloud, Naver TV, Bilibili, Facebook, Vimeo.
+
 ## Requirements
 
 - Go 1.22+

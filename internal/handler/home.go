@@ -157,7 +157,7 @@ const homeHTML = `<!doctype html>
   <main>
     <header>
       <h1>TubeDown</h1>
-      <p>YouTube 또는 TikTok URL을 입력해 메타데이터를 확인하고 다운로드 형식을 선택하세요.</p>
+      <p>YouTube, TikTok, X, Instagram, Reddit, Twitch, SoundCloud 등 공개 URL의 메타데이터를 확인하세요.</p>
     </header>
 
     <section class="panel">
