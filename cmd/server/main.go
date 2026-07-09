@@ -34,6 +34,7 @@ func main() {
 		Proxy:           env("YTDLP_PROXY", ""),
 		CookiesFile:     env("YTDLP_COOKIES_FILE", ""),
 		JSRuntime:       env("YTDLP_JS_RUNTIME", "node"),
+		Impersonate:     env("YTDLP_IMPERSONATE", "chrome"),
 	})
 
 	api := app.Group("/api/v1")

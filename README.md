@@ -48,6 +48,7 @@ curl -L 'http://localhost:8080/api/v1/download?url=https%3A%2F%2Fwww.youtube.com
 | `DOWNLOAD_TIMEOUT` | `30m` | streaming download timeout |
 | `RATE_LIMIT_PER_IP` | `2` | concurrent downloads per IP |
 | `YTDLP_JS_RUNTIME` | `node` | JavaScript runtime passed to yt-dlp |
+| `YTDLP_IMPERSONATE` | `chrome` | browser impersonation target for yt-dlp/curl_cffi |
 | `YTDLP_PROXY` | empty | optional proxy URL for yt-dlp |
 | `YTDLP_COOKIES_FILE` | empty | optional Netscape cookies file path |
 

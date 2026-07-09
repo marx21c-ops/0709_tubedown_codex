@@ -58,6 +58,7 @@ type Config struct {
 	Proxy           string
 	CookiesFile     string
 	JSRuntime       string
+	Impersonate     string
 }
 
 type YTDLP struct {
@@ -67,6 +68,7 @@ type YTDLP struct {
 	proxy           string
 	cookiesFile     string
 	jsRuntime       string
+	impersonate     string
 }
 
 type Error struct {
@@ -96,6 +98,7 @@ func NewYTDLP(config Config) *YTDLP {
 		proxy:           config.Proxy,
 		cookiesFile:     config.CookiesFile,
 		jsRuntime:       config.JSRuntime,
+		impersonate:     config.Impersonate,
 	}
 }
 
@@ -200,6 +203,13 @@ func (y *YTDLP) baseArgs() []string {
 	if y.jsRuntime != "" {
 		args = append(args, "--js-runtimes", y.jsRuntime)
 	}
+	if y.impersonate != "" {
+		args = append(args, "--impersonate", y.impersonate)
+	}
+	args = append(args,
+		"--extractor-args",
+		"youtube:player_client=android,ios;player_skip=webpage,configs",
+	)
 	return args
 }
 
