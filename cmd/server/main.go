@@ -25,6 +25,8 @@ func main() {
 
 	app.Use(middleware.RequestLogger())
 
+	app.Get("/", handler.Home())
+
 	ytdlp := service.NewYTDLP(service.Config{
 		Binary:          env("YTDLP_BINARY", "yt-dlp"),
 		MetadataTimeout: durationEnv("METADATA_TIMEOUT", 30*time.Second),
