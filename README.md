@@ -51,8 +51,12 @@ curl -L 'http://localhost:8080/api/v1/download?url=https%3A%2F%2Fwww.youtube.com
 | `YTDLP_IMPERSONATE` | `chrome` | browser impersonation target for yt-dlp/curl_cffi |
 | `YTDLP_PROXY` | empty | optional proxy URL for yt-dlp |
 | `YTDLP_COOKIES_FILE` | empty | optional Netscape cookies file path |
+| `YTDLP_COOKIES_CONTENT` | empty | optional Netscape cookies.txt content written to `/tmp/yt-dlp-cookies.txt` at startup |
+| `YTDLP_COOKIES_CONTENT_FILE` | `/tmp/yt-dlp-cookies.txt` | target path for `YTDLP_COOKIES_CONTENT` |
 
 YouTube may block datacenter IPs such as Railway with `HTTP 429` or bot checks. For production YouTube use, configure `YTDLP_PROXY` and, when needed, mount/provide a cookies file and set `YTDLP_COOKIES_FILE`.
+
+For Railway, prefer storing cookies in `YTDLP_COOKIES_CONTENT` instead of committing a cookies file. Export cookies in Netscape `cookies.txt` format and paste the full file content into the Railway variable.
 
 ## Deploy
 

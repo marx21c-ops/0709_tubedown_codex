@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -27,12 +28,21 @@ func main() {
 
 	app.Get("/", handler.Home())
 
+	cookiesFile := env("YTDLP_COOKIES_FILE", "")
+	if cookiesFile == "" {
+		var err error
+		cookiesFile, err = writeCookiesFileFromEnv()
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to write cookies file")
+		}
+	}
+
 	ytdlp := service.NewYTDLP(service.Config{
 		Binary:          env("YTDLP_BINARY", "yt-dlp"),
 		MetadataTimeout: durationEnv("METADATA_TIMEOUT", 30*time.Second),
 		DownloadTimeout: durationEnv("DOWNLOAD_TIMEOUT", 30*time.Minute),
 		Proxy:           env("YTDLP_PROXY", ""),
-		CookiesFile:     env("YTDLP_COOKIES_FILE", ""),
+		CookiesFile:     cookiesFile,
 		JSRuntime:       env("YTDLP_JS_RUNTIME", "node"),
 		Impersonate:     env("YTDLP_IMPERSONATE", "chrome"),
 	})
@@ -59,6 +69,20 @@ func env(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func writeCookiesFileFromEnv() (string, error) {
+	content := os.Getenv("YTDLP_COOKIES_CONTENT")
+	if content == "" {
+		return "", nil
+	}
+
+	path := env("YTDLP_COOKIES_CONTENT_FILE", filepath.Join(os.TempDir(), "yt-dlp-cookies.txt"))
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		return "", err
+	}
+	log.Info().Str("path", path).Msg("yt-dlp cookies file written from environment")
+	return path, nil
 }
 
 func intEnv(key string, fallback int) int {
