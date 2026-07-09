@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -33,12 +34,18 @@ type Config struct {
 	Binary          string
 	MetadataTimeout time.Duration
 	DownloadTimeout time.Duration
+	Proxy           string
+	CookiesFile     string
+	JSRuntime       string
 }
 
 type YTDLP struct {
 	binary          string
 	metadataTimeout time.Duration
 	downloadTimeout time.Duration
+	proxy           string
+	cookiesFile     string
+	jsRuntime       string
 }
 
 type Error struct {
@@ -65,6 +72,9 @@ func NewYTDLP(config Config) *YTDLP {
 		binary:          config.Binary,
 		metadataTimeout: config.MetadataTimeout,
 		downloadTimeout: config.DownloadTimeout,
+		proxy:           config.Proxy,
+		cookiesFile:     config.CookiesFile,
+		jsRuntime:       config.JSRuntime,
 	}
 }
 
@@ -76,18 +86,24 @@ func (y *YTDLP) Metadata(ctx context.Context, rawURL string) (model.MetadataResp
 	ctx, cancel := context.WithTimeout(ctx, y.metadataTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, y.binary, "--dump-single-json", "--no-playlist", rawURL)
-	output, err := cmd.CombinedOutput()
+	args := y.baseArgs()
+	args = append(args, "--dump-single-json", "--no-playlist", rawURL)
+	cmd := exec.CommandContext(ctx, y.binary, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
 	if ctx.Err() == context.DeadlineExceeded {
 		return model.MetadataResponse{}, Error{Status: fiber.StatusGatewayTimeout, Code: "EXTRACTION_TIMEOUT", Message: "metadata extraction timed out"}
 	}
 	if err != nil {
-		log.Warn().Err(err).Str("stderr", string(output)).Msg("yt-dlp metadata failed")
-		return model.MetadataResponse{}, Error{Status: fiber.StatusBadGateway, Code: "EXTRACTION_FAILED", Message: "failed to extract metadata"}
+		message := stderr.String()
+		log.Warn().Err(err).Str("stderr", message).Msg("yt-dlp metadata failed")
+		return model.MetadataResponse{}, classifyExtractionError(message)
 	}
 
 	var raw metadataJSON
 	if err := json.Unmarshal(output, &raw); err != nil {
+		log.Warn().Err(err).Str("stdout", string(output)).Str("stderr", stderr.String()).Msg("yt-dlp metadata parse failed")
 		return model.MetadataResponse{}, Error{Status: fiber.StatusBadGateway, Code: "EXTRACTION_FAILED", Message: "failed to parse metadata"}
 	}
 
@@ -105,13 +121,14 @@ func (y *YTDLP) Stream(ctx context.Context, rawURL, formatID string, dst io.Writ
 	ctx, cancel := context.WithTimeout(ctx, y.downloadTimeout)
 	defer cancel()
 
-	args := []string{
+	args := y.baseArgs()
+	args = append(args,
 		"--no-playlist",
 		"--no-part",
 		"-f", formatID,
 		"-o", "-",
 		rawURL,
-	}
+	)
 	cmd := exec.CommandContext(ctx, y.binary, args...)
 
 	stdout, err := cmd.StdoutPipe()
@@ -149,6 +166,42 @@ func (y *YTDLP) Stream(ctx context.Context, rawURL, formatID string, dst io.Writ
 	}
 
 	return nil
+}
+
+func (y *YTDLP) baseArgs() []string {
+	args := []string{"--ignore-config"}
+	if y.proxy != "" {
+		args = append(args, "--proxy", y.proxy)
+	}
+	if y.cookiesFile != "" {
+		args = append(args, "--cookies", y.cookiesFile)
+	}
+	if y.jsRuntime != "" {
+		args = append(args, "--js-runtimes", y.jsRuntime)
+	}
+	return args
+}
+
+func classifyExtractionError(message string) Error {
+	lower := strings.ToLower(message)
+	switch {
+	case strings.Contains(lower, "too many requests") || strings.Contains(lower, "http error 429"):
+		return Error{
+			Status:  fiber.StatusBadGateway,
+			Code:    "PLATFORM_RATE_LIMITED",
+			Message: "YouTube is rate-limiting this server. Configure a proxy or cookies for Railway.",
+		}
+	case strings.Contains(lower, "sign in to confirm") || strings.Contains(lower, "not a bot"):
+		return Error{
+			Status:  fiber.StatusBadGateway,
+			Code:    "PLATFORM_AUTH_REQUIRED",
+			Message: "YouTube is asking this server to confirm it is not a bot. Configure YouTube cookies or a proxy.",
+		}
+	case strings.Contains(lower, "unsupported url"):
+		return Error{Status: fiber.StatusBadRequest, Code: "INVALID_URL", Message: "unsupported url"}
+	default:
+		return Error{Status: fiber.StatusBadGateway, Code: "EXTRACTION_FAILED", Message: "failed to extract metadata"}
+	}
 }
 
 func validateURL(rawURL string) error {

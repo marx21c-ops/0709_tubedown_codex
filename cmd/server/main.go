@@ -31,6 +31,9 @@ func main() {
 		Binary:          env("YTDLP_BINARY", "yt-dlp"),
 		MetadataTimeout: durationEnv("METADATA_TIMEOUT", 30*time.Second),
 		DownloadTimeout: durationEnv("DOWNLOAD_TIMEOUT", 30*time.Minute),
+		Proxy:           env("YTDLP_PROXY", ""),
+		CookiesFile:     env("YTDLP_COOKIES_FILE", ""),
+		JSRuntime:       env("YTDLP_JS_RUNTIME", "node"),
 	})
 
 	api := app.Group("/api/v1")

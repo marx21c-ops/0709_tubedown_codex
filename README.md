@@ -45,6 +45,11 @@ curl -L 'http://localhost:8080/api/v1/download?url=https%3A%2F%2Fwww.youtube.com
 | `METADATA_TIMEOUT` | `30s` | metadata extraction timeout |
 | `DOWNLOAD_TIMEOUT` | `30m` | streaming download timeout |
 | `RATE_LIMIT_PER_IP` | `2` | concurrent downloads per IP |
+| `YTDLP_JS_RUNTIME` | `node` | JavaScript runtime passed to yt-dlp |
+| `YTDLP_PROXY` | empty | optional proxy URL for yt-dlp |
+| `YTDLP_COOKIES_FILE` | empty | optional Netscape cookies file path |
+
+YouTube may block datacenter IPs such as Railway with `HTTP 429` or bot checks. For production YouTube use, configure `YTDLP_PROXY` and, when needed, mount/provide a cookies file and set `YTDLP_COOKIES_FILE`.
 
 ## Deploy
 
