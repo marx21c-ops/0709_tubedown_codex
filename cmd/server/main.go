@@ -43,7 +43,7 @@ func main() {
 		DownloadTimeout: durationEnv("DOWNLOAD_TIMEOUT", 30*time.Minute),
 		Proxy:           env("YTDLP_PROXY", ""),
 		CookiesFile:     cookiesFile,
-		JSRuntime:       env("YTDLP_JS_RUNTIME", "node"),
+		JSRuntime:       env("YTDLP_JS_RUNTIME", "deno"),
 		Impersonate:     env("YTDLP_IMPERSONATE", "chrome"),
 	})
 
