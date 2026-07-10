@@ -140,6 +140,7 @@ const homeHTML = `<!doctype html>
       text-decoration: none;
       white-space: nowrap;
     }
+    .format a.disabled { opacity: 0.45; pointer-events: none; }
     footer {
       margin-top: 18px;
       color: var(--muted);
@@ -232,6 +233,15 @@ const homeHTML = `<!doctype html>
             const params = new URLSearchParams({ url: videoUrl, format_id: item.format_id, title: data.title || 'download' });
             link.href = '/api/v1/download?' + params.toString();
             link.textContent = '다운로드';
+            link.download = '';
+            link.addEventListener('click', () => {
+              document.querySelectorAll('.format a').forEach((item) => item.classList.add('disabled'));
+              statusEl.className = 'status';
+              statusEl.textContent = '고화질 영상과 오디오를 병합 중입니다. 다운로드가 시작될 때까지 창을 닫거나 버튼을 다시 누르지 마세요.';
+              window.setTimeout(() => {
+                document.querySelectorAll('.format a').forEach((item) => item.classList.remove('disabled'));
+              }, 180000);
+            });
             row.append(label, link);
             formats.append(row);
           }

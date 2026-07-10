@@ -41,6 +41,7 @@ func main() {
 		Binary:          env("YTDLP_BINARY", "yt-dlp"),
 		MetadataTimeout: durationEnv("METADATA_TIMEOUT", 30*time.Second),
 		DownloadTimeout: durationEnv("DOWNLOAD_TIMEOUT", 30*time.Minute),
+		DownloadWorkers: intEnv("DOWNLOAD_WORKERS", 1),
 		Proxy:           env("YTDLP_PROXY", ""),
 		CookiesFile:     cookiesFile,
 		JSRuntime:       env("YTDLP_JS_RUNTIME", "deno"),

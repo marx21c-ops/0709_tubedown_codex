@@ -46,6 +46,7 @@ curl -L 'http://localhost:8080/api/v1/download?url=https%3A%2F%2Fwww.youtube.com
 | `YTDLP_BINARY` | `yt-dlp` | yt-dlp executable path |
 | `METADATA_TIMEOUT` | `30s` | metadata extraction timeout |
 | `DOWNLOAD_TIMEOUT` | `30m` | streaming download timeout |
+| `DOWNLOAD_WORKERS` | `1` | maximum concurrent yt-dlp download/merge jobs |
 | `RATE_LIMIT_PER_IP` | `2` | concurrent downloads per IP |
 | `YTDLP_JS_RUNTIME` | `deno` | JavaScript runtime passed to yt-dlp |
 | `YTDLP_IMPERSONATE` | `chrome` | browser impersonation target for yt-dlp/curl_cffi |

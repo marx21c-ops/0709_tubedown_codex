@@ -58,6 +58,7 @@ type Config struct {
 	Binary          string
 	MetadataTimeout time.Duration
 	DownloadTimeout time.Duration
+	DownloadWorkers int
 	Proxy           string
 	CookiesFile     string
 	JSRuntime       string
@@ -72,6 +73,7 @@ type YTDLP struct {
 	cookiesFile     string
 	jsRuntime       string
 	impersonate     string
+	downloadSlots   chan struct{}
 }
 
 type Error struct {
@@ -94,6 +96,9 @@ func NewYTDLP(config Config) *YTDLP {
 	if config.DownloadTimeout == 0 {
 		config.DownloadTimeout = 30 * time.Minute
 	}
+	if config.DownloadWorkers < 1 {
+		config.DownloadWorkers = 1
+	}
 	return &YTDLP{
 		binary:          config.Binary,
 		metadataTimeout: config.MetadataTimeout,
@@ -102,6 +107,7 @@ func NewYTDLP(config Config) *YTDLP {
 		cookiesFile:     config.CookiesFile,
 		jsRuntime:       config.JSRuntime,
 		impersonate:     config.Impersonate,
+		downloadSlots:   make(chan struct{}, config.DownloadWorkers),
 	}
 }
 
@@ -147,6 +153,13 @@ func (y *YTDLP) Stream(ctx context.Context, rawURL, formatID string, dst io.Writ
 
 	ctx, cancel := context.WithTimeout(ctx, y.downloadTimeout)
 	defer cancel()
+
+	select {
+	case y.downloadSlots <- struct{}{}:
+		defer func() { <-y.downloadSlots }()
+	case <-ctx.Done():
+		return Error{Status: fiber.StatusGatewayTimeout, Code: "DOWNLOAD_TIMEOUT", Message: "download timed out while waiting"}
+	}
 
 	selector, merged := downloadSelector(formatID)
 	if merged {
