@@ -61,6 +61,7 @@ type Config struct {
 	DownloadWorkers int
 	Proxy           string
 	CookiesFile     string
+	CookiesBrowser  string
 	JSRuntime       string
 	Impersonate     string
 }
@@ -71,6 +72,7 @@ type YTDLP struct {
 	downloadTimeout time.Duration
 	proxy           string
 	cookiesFile     string
+	cookiesBrowser  string
 	jsRuntime       string
 	impersonate     string
 	downloadSlots   chan struct{}
@@ -105,6 +107,7 @@ func NewYTDLP(config Config) *YTDLP {
 		downloadTimeout: config.DownloadTimeout,
 		proxy:           config.Proxy,
 		cookiesFile:     config.CookiesFile,
+		cookiesBrowser:  config.CookiesBrowser,
 		jsRuntime:       config.JSRuntime,
 		impersonate:     config.Impersonate,
 		downloadSlots:   make(chan struct{}, config.DownloadWorkers),
@@ -284,6 +287,9 @@ func (y *YTDLP) baseArgs() []string {
 	}
 	if y.cookiesFile != "" {
 		args = append(args, "--cookies", y.cookiesFile)
+	}
+	if y.cookiesBrowser != "" {
+		args = append(args, "--cookies-from-browser", y.cookiesBrowser)
 	}
 	if y.jsRuntime != "" {
 		args = append(args, "--js-runtimes", y.jsRuntime)
