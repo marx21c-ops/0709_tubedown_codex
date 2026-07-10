@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -145,6 +148,11 @@ func (y *YTDLP) Stream(ctx context.Context, rawURL, formatID string, dst io.Writ
 	ctx, cancel := context.WithTimeout(ctx, y.downloadTimeout)
 	defer cancel()
 
+	selector, merged := downloadSelector(formatID)
+	if merged {
+		return y.downloadMerged(ctx, rawURL, selector, dst)
+	}
+
 	args := y.baseArgs()
 	args = append(args,
 		"--no-playlist",
@@ -192,6 +200,70 @@ func (y *YTDLP) Stream(ctx context.Context, rawURL, formatID string, dst io.Writ
 	return nil
 }
 
+func (y *YTDLP) downloadMerged(ctx context.Context, rawURL, selector string, dst io.Writer) error {
+	dir, err := os.MkdirTemp("", "tubedown-*")
+	if err != nil {
+		return Error{Status: fiber.StatusInternalServerError, Code: "DOWNLOAD_FAILED", Message: "failed to prepare download"}
+	}
+	defer os.RemoveAll(dir)
+
+	outputTemplate := filepath.Join(dir, "video.%(ext)s")
+	args := y.baseArgs()
+	args = append(args,
+		"--no-playlist",
+		"--no-part",
+		"--merge-output-format", "mp4",
+		"-f", selector,
+		"-o", outputTemplate,
+		rawURL,
+	)
+
+	cmd := exec.CommandContext(ctx, y.binary, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return Error{Status: fiber.StatusGatewayTimeout, Code: "DOWNLOAD_TIMEOUT", Message: "download timed out"}
+		}
+		log.Warn().Err(err).Str("stderr", stderr.String()).Msg("yt-dlp merged download failed")
+		return classifyExtractionError(stderr.String())
+	}
+
+	files, err := filepath.Glob(filepath.Join(dir, "video.*"))
+	if err != nil || len(files) == 0 {
+		return Error{Status: fiber.StatusBadGateway, Code: "DOWNLOAD_FAILED", Message: "downloaded file was not created"}
+	}
+
+	file, err := os.Open(files[0])
+	if err != nil {
+		return Error{Status: fiber.StatusInternalServerError, Code: "DOWNLOAD_FAILED", Message: "failed to open download"}
+	}
+	defer file.Close()
+	if _, err := io.Copy(dst, file); err != nil {
+		return Error{Status: fiber.StatusInternalServerError, Code: "STREAM_FAILED", Message: "failed to stream download"}
+	}
+	return nil
+}
+
+func downloadSelector(formatID string) (string, bool) {
+	switch formatID {
+	case "quality-2160":
+		return "bestvideo[height<=2160]+bestaudio/best[height<=2160]", true
+	case "quality-1440":
+		return "bestvideo[height<=1440]+bestaudio/best[height<=1440]", true
+	case "quality-1080":
+		return "bestvideo[height<=1080]+bestaudio/best[height<=1080]", true
+	case "quality-720":
+		return "bestvideo[height<=720]+bestaudio/best[height<=720]", true
+	case "quality-480":
+		return "bestvideo[height<=480]+bestaudio/best[height<=480]", true
+	case "quality-360":
+		return "bestvideo[height<=360]+bestaudio/best[height<=360]", true
+	default:
+		return formatID, false
+	}
+}
+
 func (y *YTDLP) baseArgs() []string {
 	args := []string{"--ignore-config"}
 	if y.proxy != "" {
@@ -206,10 +278,6 @@ func (y *YTDLP) baseArgs() []string {
 	if y.impersonate != "" {
 		args = append(args, "--impersonate", y.impersonate)
 	}
-	args = append(args,
-		"--extractor-args",
-		"youtube:player_client=android,ios;player_skip=webpage,configs",
-	)
 	return args
 }
 
@@ -300,41 +368,31 @@ type formatJSON struct {
 }
 
 func (m metadataJSON) toResponse() model.MetadataResponse {
-	formats := make([]model.Format, 0, len(m.Formats))
-	seen := make(map[string]struct{})
+	maxHeight := 0
 	for _, f := range m.Formats {
-		if f.FormatID == "" || f.Ext == "" {
+		if f.VCodec != "none" && int(f.Height) > maxHeight {
+			maxHeight = int(f.Height)
+		}
+	}
+
+	qualities := []int{2160, 1440, 1080, 720, 480, 360}
+	formats := make([]model.Format, 0, len(qualities))
+	for _, quality := range qualities {
+		if maxHeight > 0 && quality > maxHeight {
 			continue
 		}
-		if f.VCodec == "none" && f.ACodec == "none" {
-			continue
-		}
-
-		resolution := f.Resolution
-		if resolution == "" && f.Height > 0 {
-			resolution = fmt.Sprintf("%.0fp", f.Height)
-		}
-		if resolution == "" {
-			resolution = f.FormatNote
-		}
-		if resolution == "" {
-			resolution = "audio"
-		}
-
-		key := f.FormatID + "|" + resolution + "|" + f.Ext
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-
 		formats = append(formats, model.Format{
-			FormatID:   f.FormatID,
-			Resolution: resolution,
-			Ext:        f.Ext,
-			Note:       f.FormatNote,
-			Protocol:   f.Protocol,
+			FormatID:   fmt.Sprintf("quality-%d", quality),
+			Resolution: fmt.Sprintf("%dp", quality),
+			Ext:        "mp4",
+			Note:       "video + audio",
+			Quality:    quality,
 		})
 	}
+	if len(formats) == 0 {
+		formats = append(formats, model.Format{FormatID: "quality-360", Resolution: "360p", Ext: "mp4", Note: "video + audio", Quality: 360})
+	}
+	sort.Slice(formats, func(i, j int) bool { return formats[i].Quality > formats[j].Quality })
 
 	return model.MetadataResponse{
 		Title:     m.Title,

@@ -19,6 +19,7 @@ type Format struct {
 	Ext        string `json:"ext"`
 	Note       string `json:"note,omitempty"`
 	Protocol   string `json:"protocol,omitempty"`
+	Quality    int    `json:"quality,omitempty"`
 }
 
 type MetadataResponse struct {
