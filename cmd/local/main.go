@@ -35,7 +35,6 @@ func main() {
 		DownloadWorkers: 1,
 		CookiesBrowser:  "chrome",
 		JSRuntime:       "deno",
-		Impersonate:     "chrome",
 	})
 	app, err := localapp.New(ytdlp, downloadDir)
 	if err != nil {
