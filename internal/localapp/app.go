@@ -28,6 +28,7 @@ type App struct {
 	downloadDir string
 	mu          sync.RWMutex
 	job         *Job
+	history     []HistoryItem
 	cancel      context.CancelFunc
 }
 
@@ -41,12 +42,23 @@ type Job struct {
 	Error      string  `json:"error,omitempty"`
 	StartedAt  string  `json:"started_at"`
 	FinishedAt string  `json:"finished_at,omitempty"`
+	Thumbnail  string  `json:"thumbnail,omitempty"`
+	OutputPath string  `json:"-"`
+}
+
+type HistoryItem struct {
+	Title       string `json:"title"`
+	Quality     string `json:"quality"`
+	Thumbnail   string `json:"thumbnail,omitempty"`
+	Filename    string `json:"filename"`
+	CompletedAt string `json:"completed_at"`
 }
 
 type downloadRequest struct {
-	URL      string `json:"url"`
-	Title    string `json:"title"`
-	FormatID string `json:"format_id"`
+	URL       string `json:"url"`
+	Title     string `json:"title"`
+	FormatID  string `json:"format_id"`
+	Thumbnail string `json:"thumbnail"`
 }
 
 func New(ytdlp *service.YTDLP, downloadDir string) (*App, error) {
@@ -73,6 +85,7 @@ func New(ytdlp *service.YTDLP, downloadDir string) (*App, error) {
 	a.server.Post("/api/metadata", a.requireToken, a.metadata)
 	a.server.Post("/api/download", a.requireToken, a.startDownload)
 	a.server.Get("/api/job", a.requireToken, a.getJob)
+	a.server.Get("/api/history", a.requireToken, a.getHistory)
 	a.server.Post("/api/cancel", a.requireToken, a.cancelDownload)
 	return a, nil
 }
@@ -153,7 +166,7 @@ func (a *App) startDownload(c *fiber.Ctx) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
 	a.job = &Job{
-		ID: id, Title: req.Title, Quality: req.FormatID, Status: "queued",
+		ID: id, Title: req.Title, Quality: req.FormatID, Status: "queued", Thumbnail: req.Thumbnail,
 		OutputDir: a.downloadDir, StartedAt: time.Now().Format(time.RFC3339),
 	}
 	jobCopy := *a.job
@@ -166,7 +179,7 @@ func (a *App) startDownload(c *fiber.Ctx) error {
 func (a *App) runDownload(ctx context.Context, id, rawURL, formatID string) {
 	a.updateJob(id, func(job *Job) { job.Status = "downloading" })
 	output := filepath.Join(a.downloadDir, "%(title)s [%(id)s].%(ext)s")
-	err := a.ytdlp.DownloadLocal(ctx, rawURL, formatID, output, func(progress float64) {
+	outputPath, err := a.ytdlp.DownloadLocal(ctx, rawURL, formatID, output, func(progress float64) {
 		a.updateJob(id, func(job *Job) { job.Progress = progress })
 	})
 	a.updateJob(id, func(job *Job) {
@@ -182,6 +195,14 @@ func (a *App) runDownload(ctx context.Context, id, rawURL, formatID string) {
 		}
 		job.Status = "complete"
 		job.Progress = 100
+		job.OutputPath = outputPath
+		a.history = append([]HistoryItem{{
+			Title: job.Title, Quality: strings.TrimPrefix(job.Quality, "quality-") + "p",
+			Thumbnail: job.Thumbnail, Filename: filepath.Base(outputPath), CompletedAt: job.FinishedAt,
+		}}, a.history...)
+		if len(a.history) > 2 {
+			a.history = a.history[:2]
+		}
 	})
 }
 
@@ -201,6 +222,13 @@ func (a *App) getJob(c *fiber.Ctx) error {
 	}
 	copy := *a.job
 	return c.JSON(copy)
+}
+
+func (a *App) getHistory(c *fiber.Ctx) error {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	history := append(make([]HistoryItem, 0, len(a.history)), a.history...)
+	return c.JSON(history)
 }
 
 func (a *App) cancelDownload(c *fiber.Ctx) error {

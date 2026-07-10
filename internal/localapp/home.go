@@ -35,8 +35,15 @@ const localHTML = `<!doctype html>
     .job { display:none; margin-top:18px; padding:16px; border-radius:10px; background:#f8fafb; border:1px solid var(--line); }
     .bar { height:10px; margin:12px 0 8px; overflow:hidden; border-radius:999px; background:#e4e7ec; }
     .bar span { display:block; width:0; height:100%; background:var(--accent); transition:width .25s; }
+    .recent { display:none; margin-top:18px; }
+    .recent h2 { margin:0 0 10px; font-size:16px; }
+    .history { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .history-item { display:grid; grid-template-columns:112px 1fr; gap:12px; padding:12px; background:var(--panel); border:1px solid var(--line); border-radius:10px; min-width:0; }
+    .history-item img { width:112px; aspect-ratio:16/9; object-fit:cover; border-radius:7px; background:#e4e7ec; }
+    .history-item strong,.history-item small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .history-item small { margin-top:5px; color:var(--muted); }
     footer { margin-top:16px; color:var(--muted); font-size:13px; }
-    @media (max-width:640px) { main{padding:26px 0}.panel{padding:15px}form,.meta{grid-template-columns:1fr}button{width:100%}.controls{display:grid}.controls select{width:100%} }
+    @media (max-width:640px) { main{padding:26px 0}.panel{padding:15px}form,.meta,.history{grid-template-columns:1fr}button{width:100%}.controls{display:grid}.controls select{width:100%} }
   </style>
 </head>
 <body>
@@ -73,6 +80,10 @@ const localHTML = `<!doctype html>
       </div>
     </div>
   </section>
+  <section id="recent" class="recent">
+    <h2>최근 다운로드</h2>
+    <div id="history" class="history"></div>
+  </section>
   <footer>저장 위치: {{DOWNLOAD_DIR}} · 영상과 오디오는 이 Mac에서만 처리됩니다.</footer>
 </main>
 <script nonce="{{NONCE}}">
@@ -92,6 +103,8 @@ const localHTML = `<!doctype html>
   const progress = document.getElementById('progress');
   const percent = document.getElementById('percent');
   const cancelButton = document.getElementById('cancel');
+  const recent = document.getElementById('recent');
+  const historyEl = document.getElementById('history');
   let metadata = null;
   let pollTimer = null;
 
@@ -131,7 +144,7 @@ const localHTML = `<!doctype html>
     if (!metadata || !quality.value) return;
     downloadButton.disabled = true;
     try {
-      await api('/api/download',{method:'POST',body:JSON.stringify({url:urlInput.value.trim(),title:metadata.title,format_id:quality.value})});
+      await api('/api/download',{method:'POST',body:JSON.stringify({url:urlInput.value.trim(),title:metadata.title,thumbnail:metadata.thumbnail,format_id:quality.value})});
       jobEl.style.display = 'block';
       statusEl.textContent = 'YouTube에서 이 Mac으로 직접 다운로드 중입니다.';
       poll();
@@ -155,6 +168,8 @@ const localHTML = `<!doctype html>
         statusEl.textContent = '다운로드가 완료됐습니다. Finder의 TubeDown 폴더를 확인하세요.';
         downloadButton.disabled = false;
         cancelButton.disabled = true;
+        resetLookup();
+        await refreshHistory();
         return;
       }
       if (job.status === 'failed' || job.status === 'cancelled') {
@@ -177,6 +192,43 @@ const localHTML = `<!doctype html>
     try { await api('/api/cancel',{method:'POST',body:'{}'}); poll(); }
     catch (error) { statusEl.className='status error'; statusEl.textContent=error.message; cancelButton.disabled=false; }
   });
+
+  function resetLookup() {
+    metadata = null;
+    urlInput.value = '';
+    titleEl.textContent = '';
+    thumbnail.removeAttribute('src');
+    quality.replaceChildren();
+    result.style.display = 'none';
+    jobEl.style.display = 'none';
+    progress.style.width = '0%';
+    percent.textContent = '0%';
+    cancelButton.disabled = false;
+    urlInput.focus();
+  }
+
+  async function refreshHistory() {
+    const items = await api('/api/history');
+    historyEl.replaceChildren();
+    for (const item of items.slice(0,2)) {
+      const card = document.createElement('article');
+      card.className = 'history-item';
+      const image = document.createElement('img');
+      image.alt = '';
+      if (item.thumbnail) image.src = item.thumbnail;
+      const copy = document.createElement('div');
+      const name = document.createElement('strong');
+      name.textContent = item.title || item.filename;
+      const detail = document.createElement('small');
+      detail.textContent = item.quality + ' · ' + item.filename;
+      copy.append(name,detail);
+      card.append(image,copy);
+      historyEl.append(card);
+    }
+    recent.style.display = items.length ? 'block' : 'none';
+  }
+
+  refreshHistory().catch(() => {});
 </script>
 </body>
 </html>`

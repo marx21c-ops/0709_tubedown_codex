@@ -43,3 +43,11 @@ func TestMetadataResponseOffersMergedQualities(t *testing.T) {
 		}
 	}
 }
+
+func TestReportProgress(t *testing.T) {
+	var got float64
+	reportProgress("[download]  42.7% of 10.00MiB", func(value float64) { got = value })
+	if got != 42.7 {
+		t.Fatalf("progress = %v, want 42.7", got)
+	}
+}
